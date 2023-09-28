@@ -4,6 +4,7 @@
         "editor.defaultFormatter": "ms-python.autopep8",
         "editor.formatOnSave": true,
     },
+    "python.languageServer": "Pylance",
     "python.terminal.activateEnvInCurrentTerminal": true,
-    "python.terminal.activateEnvironment": true
+    "python.terminal.activateEnvironment": true,
 }
