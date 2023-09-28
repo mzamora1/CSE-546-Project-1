@@ -4,18 +4,21 @@
 import boto3
 import subprocess
 import json
+from decouple import config
 
 # Constants for AWS setup
-AWS_ACCESS_KEY = 'YOUR_ACCESS_KEY'
-AWS_SECRET_KEY = 'YOUR_SECRET_KEY'
-REGION_NAME = 'us-east-1'
-INPUT_BUCKET_NAME = "your-input-bucket-name"
-OUTPUT_BUCKET_NAME = "your-output-bucket-name"
-QUEUE_NAME = "your-sqs-queue-name"
-INSTANCE_TYPE = "t2.micro"  # EC2 instance type, e.g., t2.micro
-AMI_ID = "ami-09c6ef0459a2ff40e"  # ID of the AMI you want to use
-IMAGE_CLASSIFICATION_PATH = "/path/to/image_classification.py"
-LABELS_PATH = "/mnt/data/imagenet-labels.json"  # Path to the JSON file with labels
+
+# Extracting constants from .env file
+AWS_ACCESS_KEY = config('AWS_ACCESS_KEY')
+AWS_SECRET_KEY = config('AWS_SECRET_KEY')
+REGION_NAME = config('REGION_NAME')
+INPUT_BUCKET_NAME = config('INPUT_BUCKET_NAME')
+OUTPUT_BUCKET_NAME = config('OUTPUT_BUCKET_NAME')
+QUEUE_NAME = config('QUEUE_NAME')
+INSTANCE_TYPE = config('INSTANCE_TYPE')
+AMI_ID = config('AMI_ID')
+IMAGE_CLASSIFICATION_PATH = config('IMAGE_CLASSIFICATION_PATH')
+LABELS_PATH = config('LABELS_PATH')
 
 # Initialize boto3 clients
 boto3.setup_default_session(aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=AWS_SECRET_KEY, region_name=REGION_NAME)
