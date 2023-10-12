@@ -21,6 +21,8 @@ LABELS_PATH = config('LABELS_PATH')
 KEY_NAME = config('KEY_NAME')
 AUTOSCALING_GROUP_NAME = 'autoscale-app-tier'
 LAUNCH_TEMPLATE_NAME_APP_TIER = 'launch-image-processor'
+LAUNCH_TEMPLATE_NAME_WEB_TIER = 'Launch-Web-Tier'
+
 
 boto3.setup_default_session(aws_access_key_id=AWS_ACCESS_KEY,
                             aws_secret_access_key=AWS_SECRET_KEY,

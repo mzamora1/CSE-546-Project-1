@@ -8,7 +8,7 @@ import {
   S3Client,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
-import { SQSClient, SendMessageCommand, GetQueueUrlCommand, ReceiveMessageCommand } from "@aws-sdk/client-sqs";
+import { SQSClient, SendMessageCommand, GetQueueUrlCommand, ReceiveMessageCommand, DeleteMessageCommand, DeleteMessageBatchCommand } from "@aws-sdk/client-sqs";
 import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,14 +21,19 @@ const upload = multer({dest: __dirname + '/upload_images'});
 
 server.use(express.static('public'));
 
+server.get('/', (request, response) => {
+  console.log(process.env);
+  response.end('hello from aws');
+})
+
 // "myfile" is the key of the http payload
 server.post('/', upload.single('myfile'), async function(request, respond) {
   if(request.file) console.log(request.file);
   
   // save the image
-  fs.rename(__dirname + '/upload_images/' + request.file.filename, __dirname + '/upload_images/' + request.file.originalname, function(err) {
-    if ( err ) console.log('ERROR: ' + err);
-  });
+  // fs.rename(__dirname + '/upload_images/' + request.file.filename, __dirname + '/upload_images/' + request.file.originalname, function(err) {
+  //   if ( err ) console.log('ERROR: ' + err);
+  // });
 
   // A region and credentials can be declared explicitly. For example
   // `new S3Client({ region: 'us-east-1', credentials: {...} })` would
@@ -36,7 +41,7 @@ server.post('/', upload.single('myfile'), async function(request, respond) {
   // use your local configuration and credentials if those properties
   // are not defined here.
   const clientConfig = { 
-    region: process.env.REGION,
+    region: process.env.REGION_NAME,
     credentials: {
       "accessKeyId": process.env.AWS_ACCESS_KEY,
       "secretAccessKey": process.env.AWS_SECRET_KEY,
@@ -47,11 +52,12 @@ server.post('/', upload.single('myfile'), async function(request, respond) {
 
 
   // Put an object into an Amazon S3 bucket.
+  console.log(request.file.path)
   await s3Client.send(
     new PutObjectCommand({
       Bucket: process.env.INPUT_BUCKET_NAME,
-      Key: request.file.filename,
-      Body: request.file.buffer,
+      Key: request.file.originalname,
+      Body: fs.readFileSync(request.file.path)
     })
   );
 
@@ -74,9 +80,9 @@ server.post('/', upload.single('myfile'), async function(request, respond) {
     new SendMessageCommand({
       QueueUrl: requestQueueUrl,
       MessageBody: JSON.stringify({
-          'bucket': aws.INPUT_BUCKET_NAME,
-          'key': request.file.filename,
-          'responseQueueUrl': responseQueueUrl
+          'bucket': process.env.INPUT_BUCKET_NAME,
+          'key': request.file.originalname,
+          'responseQueueUrl': responseQueueUrl,
       }),
     })
   )
@@ -84,19 +90,34 @@ server.post('/', upload.single('myfile'), async function(request, respond) {
   const getResponseMessage = async (QueueUrl) => {
     while(true){
       const response = await sqsClient.send(
-        new ReceiveMessageCommand({ QueueUrl, MaxNumberOfMessages: 1 })
+        new ReceiveMessageCommand({ QueueUrl, MaxNumberOfMessages: 1})
       );
+      if(!response){
+        continue;
+      }
       const messages = response.Messages;
-      if(messages.length > 0){
+      if(messages && messages.length > 0){
         return messages[0];
       }
     }
   }
 
+  console.log('awaiting reponse message');
   const message = await getResponseMessage(responseQueueUrl);
+  const {ReceiptHandle, MessageId} = message;
   const body = JSON.parse(message.Body);
   const result = body.classification;
 
+  await sqsClient.send(
+    new DeleteMessageBatchCommand({
+      QueueUrl: queueUrl,
+      Entries: [{
+        Id: MessageId,
+        ReceiptHandle: ReceiptHandle,
+      }],
+    }),
+  ) 
+  
   respond.setHeader('Content-Type', 'text/html');
   respond.end(result);
 });

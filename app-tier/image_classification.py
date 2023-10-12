@@ -43,6 +43,7 @@ import numpy as np
 import json
 import aws
 from io import BytesIO
+import tempfile
 
 request_queue_url = aws.sqs.get_queue_url(
     QueueName=aws.REQUEST_QUEUE_NAME)['QueueUrl']
@@ -55,15 +56,22 @@ def process_message():
     while True:
         request = aws.sqs.receive_message(
             QueueUrl=request_queue_url, MaxNumberOfMessages=1)
+        if 'Messages' not in request:
+            continue
         messages = request['Messages']
         if len(messages) > 0:
             break
-
     body = json.loads(messages[0]['Body'])
     image_name = body['key']
+    receiptHandle = messages[0]['ReceiptHandle']
 
-    with BytesIO() as image_file:
+    print(messages)
+    # print(aws.s3.list_objects(Bucket=body['bucket']))
+    # with BytesIO() as image_file:
+    with tempfile.TemporaryFile(suffix='jpeg') as image_file:
         aws.s3.download_fileobj(body['bucket'], image_name, image_file)
+        # obj = aws.s3.get_object(Bucket=body['bucket'], Key=body['key'])
+        # print(obj['Body'].read())
         img = Image.open(image_file)
 
         model = models.resnet18(pretrained=True)
@@ -77,11 +85,23 @@ def process_message():
         labels = json.load(f)
     result = labels[np.array(predicted)[0]]
 
-    save_name = f"{image_name},{result}"
+    save_name = f"{image_name},{result}".encode()
     print(f"{save_name}")
 
+    print(aws.OUTPUT_BUCKET_NAME)
+
+    from pathlib import Path
+
+    filename = Path(image_name).stem
+    print(filename)
+
     with BytesIO(bytes(save_name)) as f:
-        aws.upload_file(f, aws.OUTPUT_BUCKET_NAME, image_name)
+        aws.upload_file(f, aws.OUTPUT_BUCKET_NAME, filename)
+
+    aws.sqs.delete_message(
+        QueueUrl=request_queue_url,
+        ReceiptHandle=receiptHandle
+    )
 
     aws.sqs.send_message(
         QueueUrl=body['responseQueueUrl'],
